@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tax Certificate Generator</title>
+<!-- Added html2pdf for individual PDF downloads -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+    :root{
+        --navy:#1e3a8a;
+        --navy-dark:#152a63;
+        --ink:#111827;
+        --paper:#ffffff;
+        --bg:#eef1f6;
+        --line:#cbd5e0;
+        --muted:#6b7280;
+        --amber:#fef08a;
+        --ok:#0f7a3c;
+        --warn:#b45309;
+        --warn-bg:#fff7ed;
+        --err:#b91c1c;
+        --err-bg:#fef2f2;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{
+        font-family:'Segoe UI',Arial,Helvetica,sans-serif;
+        background:var(--bg);
+        color:var(--ink);
+        min-height:100vh;
+    }
+
+    /* ---------- App shell ---------- */
+    .app{display:grid;grid-template-columns:360px 1fr;min-height:100vh;}
+    .rail{
+        background:var(--paper);
+        border-right:1px solid var(--line);
+        padding:20px;
+        overflow-y:auto;
+        max-height:100vh;
+        position:sticky;
+        top:0;
+    }
+    .rail h1{
+        font-size:16px;
+        color:var(--navy);
+        letter-spacing:.02em;
+        margin-bottom:2px;
+    }
+    .rail .sub{font-size:11.5px;color:var(--muted);margin-bottom:18px;}
+
+    .card{
+        border:1px solid var(--line);
+        border-radius:8px;
+        padding:14px;
+        margin-bottom:14px;
+        background:#fbfcfe;
+    }
+    .card h2{
+        font-size:11px;
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        color:var(--navy);
+        margin-bottom:10px;
+        display:flex;
+        align-items:center;
+        gap:6px;
+    }
+    .card h2 .num{
+        background:var(--navy);
+        color:#fff;
+        width:16px;height:16px;
+        border-radius:50%;
+        font-size:9.5px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+    }
+
+    label{display:block;font-size:10.5px;color:var(--muted);margin:8px 0 3px;font-weight:600;}
+    .tpl-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:4px;}
+    .tpl-chip{
+        border:1.5px solid var(--line);background:#fff;border-radius:8px;
+        padding:8px 6px;font-size:11px;font-weight:600;color:var(--ink);
+        cursor:pointer;text-align:center;transition:all .12s;
+    }
+    .tpl-chip:hover{border-color:var(--navy);}
+    .tpl-chip.active{border-color:var(--navy);background:#eff6ff;color:var(--navy);box-shadow:0 0 0 1px var(--navy);}
+    label:first-of-type{margin-top:0;}
+    input[type=text], input[type=date], select{
+        width:100%;
+        padding:6px 8px;
+        font-size:12px;
+        border:1px solid var(--line);
+        border-radius:5px;
+        background:#fff;
+        color:var(--ink);
+        font-family:inherit;
+    }
+    input:focus, select:focus{outline:2px solid #93c5fd;outline-offset:0;border-color:var(--navy);}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+    .dropzone{
+        border:1.5px dashed #93b4e8;
+        background:#f3f7ff;
+        border-radius:8px;
+        padding:16px 10px;
+        text-align:center;
+        cursor:pointer;
+        transition:background .15s;
+    }
+    .dropzone:hover{background:#e9f1ff;}
+    .dropzone.drag{background:#dbeafe;border-color:var(--navy);}
+    .dropzone .ic{font-size:20px;margin-bottom:4px;}
+    .dropzone .t1{font-size:12px;font-weight:600;color:var(--navy);}
+    .dropzone .t2{font-size:10.5px;color:var(--muted);margin-top:2px;}
+    #fileInput, #logoInput{display:none;}
+
+    .dropzone.small{padding:10px;}
+    .dropzone.small .ic{margin-bottom:2px;}
+    .dropzone.small .t1{font-size:11px;}
+    .dropzone.small .t2{font-size:9.5px;}
+    #logoPreviewWrap{display:flex;align-items:center;justify-content:center;padding:4px;}
+    #logoPreviewImg{max-height:56px;max-width:100%;object-fit:contain;}
+
+    .filepill{
+        display:flex;align-items:center;justify-content:space-between;
+        background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;
+        padding:6px 10px;font-size:11.5px;color:var(--navy);margin-top:8px;
+    }
+    .filepill button{
+        border:none;background:none;color:#b91c1c;cursor:pointer;font-size:13px;font-weight:700;
+    }
+
+    .status{font-size:11px;border-radius:6px;padding:7px 9px;margin-top:8px;line-height:1.4;}
+    .status.ok{background:#f0fdf4;color:var(--ok);border:1px solid #bbf7d0;}
+    .status.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #fed7aa;}
+    .status.err{background:var(--err-bg);color:var(--err);border:1px solid #fecaca;}
+
+    .btn{
+        display:inline-flex;align-items:center;justify-content:center;gap:6px;
+        width:100%;padding:9px 10px;font-size:12.5px;font-weight:600;
+        border-radius:6px;border:1px solid var(--navy);cursor:pointer;
+        background:var(--navy);color:#fff;margin-top:6px;
+        font-family:inherit;
+    }
+    .btn:hover{background:var(--navy-dark);}
+    .btn.secondary{background:#fff;color:var(--navy);}
+    .btn.secondary:hover{background:#eff6ff;}
+    .btn:disabled{opacity:.45;cursor:not-allowed;}
+    .btn.small{width:auto;padding:5px 9px;font-size:11px;}
+
+    .hint{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+    /* ---------- Main / preview column ---------- */
+    .main{padding:22px 26px;overflow-y:auto;max-height:100vh;}
+    .toolbar{
+        display:flex;align-items:center;justify-content:space-between;
+        margin-bottom:16px;flex-wrap:wrap;gap:10px;
+    }
+    .toolbar .title{font-size:15px;font-weight:700;color:var(--navy);}
+    .toolbar .actions{display:flex;gap:8px;}
+    .toolbar .actions .btn{width:auto;margin:0;padding:8px 14px;}
+
+    .emp-table-wrap{
+        background:#fff;border:1px solid var(--line);border-radius:8px;
+        overflow:hidden;margin-bottom:20px;
+    }
+    table.emp-table{width:100%;border-collapse:collapse;font-size:12px;}
+    table.emp-table th{
+        background:#f3f4f6;color:var(--navy);text-align:left;
+        padding:8px 10px;font-size:10.5px;text-transform:uppercase;
+        letter-spacing:.03em;border-bottom:1px solid var(--line);
+    }
+    table.emp-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    table.emp-table tr:last-child td{border-bottom:none;}
+    table.emp-table tr.selected{background:#eff6ff;}
+    table.emp-table tr:hover{background:#f8fafc;cursor:pointer;}
+    .badge-mismatch{
+        display:inline-block;background:var(--err-bg);color:var(--err);
+        font-size:9.5px;font-weight:700;border-radius:4px;padding:1px 6px;margin-left:6px;
+    }
+    .badge-ok{
+        display:inline-block;background:#f0fdf4;color:var(--ok);
+        font-size:9.5px;font-weight:700;border-radius:4px;padding:1px 6px;margin-left:6px;
+    }
+    .num{text-align:right;font-variant-numeric:tabular-nums;}
+    .chk{width:15px;height:15px;}
+
+    .empty-state{
+        background:#fff;border:1px dashed var(--line);border-radius:10px;
+        padding:60px 30px;text-align:center;color:var(--muted);font-size:13px;
+    }
+    .empty-state .big{font-size:28px;margin-bottom:8px;}
+
+    /* ---------- Certificate (matches original template exactly) ---------- */
+    .cert-shell{
+        --certA:#1e3a8a; --certA-bg:#eff6ff; --certA-border:#bfdbfe;
+        --certHighlight:#fef08a; --certFont:Arial,Helvetica,sans-serif;
+        --certBoxBorder:1px solid #d1d5db; --certBoxBg:#f3f4f6;
+        --certOuterBorder:none; --certTitleColor:#111827;
+        background:#fff;
+        box-shadow:0 1px 3px rgba(0,0,0,.08), 0 6px 20px rgba(15,23,42,.06);
+        margin:0 auto;
+        width:210mm;
+        max-width:100%;
+    }
+    .cert-shell.style-formal{
+        --certA:#111827; --certA-bg:#f3f4f6; --certA-border:#9ca3af;
+        --certHighlight:#e5e7eb; --certFont:'Times New Roman',Times,serif;
+        --certBoxBorder:1px solid #111827; --certBoxBg:#fff;
+        --certOuterBorder:2px solid #111827; --certTitleColor:#111827;
+    }
+    .cert-shell.style-minimal{
+        --certA:#334155; --certA-bg:#f8fafc; --certA-border:#e2e8f0;
+        --certHighlight:#f1f5f9; --certFont:'Segoe UI',Arial,sans-serif;
+        --certBoxBorder:none; --certBoxBg:transparent;
+        --certOuterBorder:none; --certTitleColor:#0f172a;
+    }
+    .cert-shell.style-emerald{
+        --certA:#065f46; --certA-bg:#ecfdf5; --certA-border:#a7f3d0;
+        --certHighlight:#fef9c3; --certFont:Arial,Helvetica,sans-serif;
+        --certBoxBorder:1px solid #a7f3d0; --certBoxBg:#f0fdf4;
+        --certOuterBorder:none; --certTitleColor:#064e3b;
+    }
+    .cert-shell.style-premium{
+        --certA:#1e3a8a; --certA-bg:#eef2ff; --certA-border:#c7d2fe;
+        --certHighlight:#fde68a; --certFont:Arial,Helvetica,sans-serif;
+        --certOuterBorder:none;
+    }
+    .cert-shell.style-modern{
+        --certA:#0f766e; --certA-bg:#f0fdfa; --certA-border:#99f6e4;
+        --certHighlight:#fef08a; --certFont:'Segoe UI',Arial,sans-serif;
+        --certOuterBorder:none;
+    }
+    .cert-shell.style-maroon{
+        --certA:#7f1d1d; --certA-bg:#fef2f2; --certA-border:#fecaca;
+        --certHighlight:#fde68a; --certFont:Arial,Helvetica,sans-serif;
+        --certBoxBorder:1px solid #fecaca; --certBoxBg:#fef2f2;
+        --certOuterBorder:none; --certTitleColor:#7f1d1d;
+    }
+    .cert-shell.style-slate{
+        --certA:#1e293b; --certA-bg:#f1f5f9; --certA-border:#cbd5e1;
+        --certHighlight:#e2e8f0; --certFont:Arial,Helvetica,sans-serif;
+        --certBoxBorder:1px solid #cbd5e1; --certBoxBg:#f8fafc;
+        --certOuterBorder:none; --certTitleColor:#0f172a;
+    }
+    .cert-shell.style-gold{
+        --certA:#92400e; --certA-bg:#fffbeb; --certA-border:#fde68a;
+        --certHighlight:#fef3c7; --certFont:Georgia,'Times New Roman',serif;
+        --certBoxBorder:1px solid #fde68a; --certBoxBg:#fffbeb;
+        --certOuterBorder:1px double #92400e; --certTitleColor:#78350f;
+    }
+    .border-wrapper{
+        min-height:277mm;
+        padding:0.55in;
+        position:relative;
+        background:#fff;
+        font-family:var(--certFont);
+        font-size:9.5pt;
+        color:#111827;
+        line-height:1.5;
+        border:var(--certOuterBorder);
+    }
+    .cert-shell + .cert-shell{margin-top:16px;}
+
+    /* FIX: Removed padding to avoid html2canvas overlap bugs */
+    .highlight{background:var(--certHighlight);text-decoration:underline;font-weight:bold;color:#000;white-space:nowrap;}
+    .header-table{width:100%;table-layout:fixed;border-bottom:2px solid var(--certA);border-collapse:collapse;margin-bottom:12px;}
+    .header-left{width:60%;vertical-align:top;text-align:left;}
+    .header-left-inner{display:flex;align-items:center;gap:12px;}
+    .header-logo{max-height:52px;max-width:130px;object-fit:contain;flex-shrink:0;}
+    .header-logo-solo{max-height:58px;max-width:240px;object-fit:contain;display:block;}
+    .header-left h1{font-size:15pt;font-weight:bold;color:var(--certA);line-height:1.2;}
+    .header-left p{font-size:9pt;font-weight:bold;color:var(--certA);margin-top:2px;line-height:1.2;}
+    .header-right{width:40%;text-align:right;vertical-align:top;font-size:8.5pt;color:#374151;line-height:1.5;}
+    .badge{display:inline-block;background:var(--certA-bg);border:1px solid var(--certA-border);color:var(--certA);padding:2px 8px;font-weight:bold;font-size:8pt;margin-top:6px;}
+    .title-box{background:var(--certBoxBg);border:var(--certBoxBorder);padding:6px;text-align:center;margin-bottom:12px;}
+    .title-box h2{font-size:12pt;font-weight:bold;text-transform:uppercase;color:var(--certTitleColor);line-height:1.3;}
+    .title-box p{font-size:9pt;font-style:italic;margin-top:2px;color:#4b5563;line-height:1.3;}
+    
+    /* FIX: text-align: left instead of justify prevents word spacing issues in html2canvas */
+    .cert-body{text-align:left;word-wrap:break-word;line-height:1.6;margin-bottom:10px;font-size:9.5pt;}
+    
+    .data-table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:12px;}
+    .data-table th{background:var(--certA);color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #cbd5e0;font-size:8.5pt;text-transform:uppercase;}
+    .data-table td{padding:4px 6px;border:1px solid #cbd5e0;font-size:8.5pt;vertical-align:middle;}
+    .data-table tbody tr:nth-child(even) td{background:#f9fafb;}
+    .col-center{text-align:center;}
+    .col-right{text-align:right;}
+    .col-mono{text-align:center;font-family:'Courier New',Courier,monospace;}
+    .footer-box{border:1px solid var(--certA-border);background:var(--certA-bg);padding:8px 12px;margin-bottom:8px;font-size:9pt;}
+    .footer-box .footer-label{font-weight:bold;color:var(--certA);margin-bottom:4px;font-size:9pt;}
+    .footer-info-table{width:100%;border-collapse:collapse;}
+    .footer-info-table td{border:none;padding:2px 0;font-size:9pt;vertical-align:top;color:#111827;}
+    .system-note{text-align:center;font-size:8pt;font-style:italic;color:#6b7280;margin-top:14px;padding-top:4px;}
+
+    /* ---- Premium Grid template ---- */
+    .tpl-premium .prem-header{text-align:center;border-bottom:2px solid var(--certA);padding-bottom:10px;margin-bottom:10px;}
+    .tpl-premium .prem-header h1{font-size:15pt;font-weight:bold;color:var(--certA);}
+    .tpl-premium .prem-header p{font-size:8.5pt;color:#4b5563;margin-top:3px;}
+    .tpl-premium .prem-title{text-align:center;margin-bottom:14px;}
+    .tpl-premium .prem-title h2{font-size:13pt;font-weight:bold;color:var(--certTitleColor,#111827);text-transform:uppercase;letter-spacing:.02em;}
+    .tpl-premium .prem-title p{font-size:9pt;font-style:italic;color:#4b5563;margin-top:2px;}
+    .tpl-premium .prem-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:14px;padding:12px;background:var(--certA-bg);border:1px solid var(--certA-border);border-radius:4px;}
+    .tpl-premium .prem-field.wide{grid-column:1 / -1;}
+    .tpl-premium .prem-label{font-size:7.5pt;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;color:var(--certA);margin-bottom:2px;}
+    .tpl-premium .prem-value{font-size:9.5pt;color:#111827;font-weight:600;}
+    .tpl-premium .prem-body{font-size:9.5pt;line-height:1.6;margin-bottom:8px;text-align:left;}
+    .tpl-premium .prem-footer{text-align:center;font-size:8pt;font-style:italic;color:#6b7280;margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;}
+
+    /* ---- Modern Corporate template ---- */
+    .tpl-modern .mod-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--certA-border);padding-bottom:10px;margin-bottom:10px;}
+    .tpl-modern .mod-header h1{font-size:14pt;font-weight:bold;color:var(--certA);}
+    .tpl-modern .mod-header p{font-size:8.5pt;color:#4b5563;margin-top:3px;line-height:1.4;}
+    .tpl-modern .mod-meta{text-align:right;font-size:8.5pt;color:#374151;line-height:1.6;}
+    .tpl-modern .mod-title{font-size:13pt;font-weight:bold;color:var(--certTitleColor,#0f172a);letter-spacing:.05em;margin-bottom:12px;}
+    .tpl-modern .mod-section{background:var(--certA-bg);border-left:3px solid var(--certA);border-radius:3px;padding:8px 12px;margin-bottom:10px;font-size:9.5pt;line-height:1.6;}
+    .tpl-modern .mod-section-title{font-size:8pt;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;color:var(--certA);margin-bottom:4px;}
+    .tpl-modern .mod-body{font-size:9.5pt;line-height:1.6;margin-bottom:8px;text-align:left;}
+    .tpl-modern .mod-footer{text-align:center;font-size:8pt;font-style:italic;color:#6b7280;margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;}
+
+    /* ---------- Download overlay ---------- */
+    #downloadOverlay{
+        display:none;
+        position:fixed;inset:0;
+        background:rgba(15,23,42,0.65);
+        backdrop-filter:blur(4px);
+        z-index:9999;
+        align-items:center;
+        justify-content:center;
+    }
+    #downloadOverlay.active{display:flex;}
+    .dl-card{
+        background:#fff;
+        border-radius:16px;
+        padding:36px 44px;
+        text-align:center;
+        box-shadow:0 24px 60px rgba(0,0,0,.25);
+        min-width:320px;
+        max-width:420px;
+    }
+    .dl-spinner{
+        width:52px;height:52px;
+        border:5px solid #e5e7eb;
+        border-top-color:#1e3a8a;
+        border-radius:50%;
+        animation:spin .8s linear infinite;
+        margin:0 auto 20px;
+    }
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .dl-title{font-size:15px;font-weight:700;color:#1e3a8a;margin-bottom:4px;}
+    .dl-sub{font-size:12px;color:#6b7280;margin-bottom:20px;min-height:18px;}
+    .dl-bar-wrap{
+        background:#e5e7eb;
+        border-radius:99px;
+        height:8px;
+        overflow:hidden;
+        margin-bottom:12px;
+    }
+    .dl-bar{
+        height:100%;
+        background:linear-gradient(90deg,#1e3a8a,#3b82f6);
+        border-radius:99px;
+        transition:width .35s ease;
+        width:0%;
+    }
+    .dl-count{font-size:11px;color:#9ca3af;}
+
+    /* ---------- Print ---------- */
+    @media print{
+        body *{visibility:hidden;}
+        .print-target, .print-target *{visibility:visible;}
+        .print-target{position:absolute;left:0;top:0;width:100%;}
+        .cert-shell{box-shadow:none;width:auto;}
+        .border-wrapper{min-height:0;}
+        .cert-shell + .cert-shell{margin-top:0;page-break-before:always;}
+        @page{size:A4 portrait;margin:10mm;}
+    }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+    <!-- ============ LEFT RAIL ============ -->
+    <div class="rail">
+        <h1>Tax Certificate Generator</h1>
+        <div class="sub">Section 149 &middot; Certificate of Collection / Deduction of Tax</div>
+
+        <!-- STEP 1: Company -->
+        <div class="card">
+            <h2><span class="num">1</span>Withholding Company</h2>
+
+            <label>Company Logo (optional)</label>
+            <div class="dropzone small" id="logoDropzone">
+                <div id="logoEmptyState">
+                    <div class="ic" style="font-size:16px;">&#128247;</div>
+                    <div class="t1">Click or drop a logo image</div>
+                    <div class="t2">PNG or JPG, transparent background works best</div>
+                </div>
+                <div id="logoPreviewWrap" style="display:none;">
+                    <img id="logoPreviewImg" alt="Company logo preview">
+                </div>
+            </div>
+            <input type="file" id="logoInput" accept="image/png,image/jpeg,image/svg+xml">
+            <div id="logoPillHolder"></div>
+
+            <label>Company Name</label>
+            <input type="text" id="companyName" value="AAS ENTERPRISES (PVT) LTD.">
+            <label>Address</label>
+            <input type="text" id="companyAddress" value="242-B, AHMAD BLOCK, NEW GARDEN TOWN, LAHORE">
+            <div class="row2">
+                <div>
+                    <label>NTN</label>
+                    <input type="text" id="companyNTN" value="3281450-0">
+                </div>
+                <div>
+                    <label>Issue Date</label>
+                    <input type="text" id="issueDate" placeholder="20-Jul-26">
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: Certificate defaults -->
+        <div class="card">
+            <h2><span class="num">2</span>Certificate Defaults</h2>
+
+            <label>Certificate Template</label>
+            <select id="certTemplate">
+                <option value="salary149">Salary &mdash; Section 149</option>
+                <option value="goods153">Goods / Services / Contracts &mdash; Section 153</option>
+                <option value="rent155">Rent of Immovable Property &mdash; Section 155</option>
+                <option value="profit151">Profit on Debt / Yield on Investment &mdash; Section 151</option>
+                <option value="custom">Custom / Other Section</option>
+            </select>
+            <div class="hint" style="margin-bottom:8px;">Picks Section No., Payment Nature &amp; certificate wording for that payment type. Switch to "Custom" to type your own.</div>
+
+            <label>Certificate Design &mdash; click to pick a template</label>
+            <div class="tpl-grid" id="certDesignGrid">
+                <button type="button" class="tpl-chip active" data-val="navy">Classic Navy</button>
+                <button type="button" class="tpl-chip" data-val="formal">Government Formal</button>
+                <button type="button" class="tpl-chip" data-val="minimal">Modern Minimal</button>
+                <button type="button" class="tpl-chip" data-val="emerald">Corporate Emerald</button>
+                <button type="button" class="tpl-chip" data-val="premium">Premium Grid</button>
+                <button type="button" class="tpl-chip" data-val="modern">Modern Corporate</button>
+                <button type="button" class="tpl-chip" data-val="maroon">Maroon Classic</button>
+                <button type="button" class="tpl-chip" data-val="slate">Slate Corporate</button>
+                <button type="button" class="tpl-chip" data-val="gold">Gold Ledger</button>
+            </div>
+            <select id="certDesign" style="display:none">
+                <option value="navy">Classic Navy</option>
+                <option value="formal">Government Formal (B/W, boxed)</option>
+                <option value="minimal">Modern Minimal</option>
+                <option value="emerald">Corporate Emerald</option>
+                <option value="premium">Premium Grid (labeled fields)</option>
+                <option value="modern">Modern Corporate (sectioned)</option>
+                <option value="maroon">Maroon Classic</option>
+                <option value="slate">Slate Corporate</option>
+                <option value="gold">Gold Ledger</option>
+            </select>
+            <div class="hint" style="margin-bottom:8px;">Changes the certificate's visual layout &mdash; same data, different look. The live preview on the right updates as soon as you click one.</div>
+
+            <div class="row2">
+                <div>
+                    <label>Section No.</label>
+                    <input type="text" id="sectionNo" value="149">
+                </div>
+                <div>
+                    <label>Copy Type</label>
+                    <select id="copyType">
+                        <option>ORIGINAL / DUPLICATE</option>
+                        <option>ORIGINAL</option>
+                        <option>DUPLICATE</option>
+                    </select>
+                </div>
+            </div>
+            <div class="hint" style="margin-top:-2px;">Not just salary &mdash; edit Section No. &amp; Payment Nature below for any withholding section (e.g. 153 goods/services, 155 rent, 236C property). Uploading a CPR auto-fills these from its "Payment Section" line.</div>
+            
+            <div class="row2">
+                <div>
+                    <label>Period From</label>
+                    <input type="text" id="manualPeriodFrom" placeholder="Auto-calculated">
+                </div>
+                <div>
+                    <label>Period To</label>
+                    <input type="text" id="manualPeriodTo" placeholder="Auto-calculated">
+                </div>
+            </div>
+            <div class="hint" style="margin-bottom:8px; margin-top:-2px;">Leave empty to auto-detect from Excel dates.</div>
+
+            <label>Payment Nature</label>
+            <input type="text" id="paymentNature" value="Payment of Salaries">
+            <div class="row2">
+                <div>
+                    <label>Deposit Bank</label>
+                    <input type="text" id="defaultBank" value="NBP">
+                </div>
+                <div>
+                    <label>Branch / City</label>
+                    <input type="text" id="defaultBranch" value="Lahore">
+                </div>
+            </div>
+            <label>Cert. No. Prefix</label>
+            <input type="text" id="certPrefix" value="AAS/2025/" placeholder="e.g. AAS/2025/">
+            <div class="hint">Certificate numbers are always generated from this prefix + a running serial &mdash; any "Sr"/cert-number column in the sheet is ignored.</div>
+        </div>
+
+        <!-- STEP 3: Upload -->
+        <div class="card">
+            <h2><span class="num">3</span>Payroll Tax Data (.xlsx)</h2>
+            <div class="dropzone" id="dropzone">
+                <div class="ic">&#128194;</div>
+                <div class="t1">Click or drop your Excel file</div>
+                <div class="t2">One sheet with per-employee totals, one with per-deposit rows</div>
+            </div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+            <div id="filepillHolder"></div>
+            <div id="parseStatus"></div>
+            <div class="hint">Expected columns &mdash; summary sheet: <b>Name, CNIC, Sum of Amount, Sum of Tax</b> (+ address). Detail sheet: <b>CNIC, Date, Amount, Tax, CPR No</b>.</div>
+        </div>
+
+        <!-- STEP 4: CPR PDF extraction -->
+        <div class="card">
+            <h2><span class="num">4</span>Or Extract from CPR (PDF)</h2>
+            <div class="dropzone" id="cprDropzone">
+                <div class="ic">&#128203;</div>
+                <div class="t1">Click or drop CPR PDF(s)</div>
+                <div class="t2">Upload one or many FBR Computerized Payment Receipts</div>
+            </div>
+            <input type="file" id="cprInput" accept="application/pdf" multiple>
+            <div id="cprPillHolder"></div>
+            <div id="cprParseStatus"></div>
+            <div class="hint">Reads each CPR's taxpayer table (CNIC, name, address, amount, tax, CPR No) directly &mdash; no Excel needed. Upload multiple CPRs (e.g. different months) and they'll be combined per CNIC into one certificate each. Section No. &amp; Payment Nature auto-fill from the first CPR if left at default.</div>
+            <button class="btn secondary small" id="clearCprBtn" style="display:none; width:100%; margin-top:8px;">Clear CPR data</button>
+        </div>
+
+        <!-- STEP 5: Manual entry -->
+        <div class="card">
+            <h2><span class="num">5</span>Add a Single Entry (manual)</h2>
+            <div class="hint" style="margin-bottom:8px;">For a one-off deduction &mdash; e.g. a single contractor or landlord &mdash; without a full CPR/Excel. Works with any template above.</div>
+            <label>Name</label>
+            <input type="text" id="manName" placeholder="Taxpayer name">
+            <label>NTN / CNIC</label>
+            <input type="text" id="manCnic" placeholder="35202-1234567-1">
+            <label>Address</label>
+            <input type="text" id="manAddress" placeholder="Optional">
+            <div class="row2">
+                <div>
+                    <label>Amount (value paid)</label>
+                    <input type="text" id="manAmount" placeholder="e.g. 500,000">
+                </div>
+                <div>
+                    <label>Tax Withheld</label>
+                    <input type="text" id="manTax" placeholder="e.g. 10,000">
+                </div>
+            </div>
+            <div class="row2">
+                <div>
+                    <label>Deposit Date</label>
+                    <input type="text" id="manDate" placeholder="e.g. 15-Jul-2026">
+                </div>
+                <div>
+                    <label>CPR No.</label>
+                    <input type="text" id="manCpr" placeholder="Optional">
+                </div>
+            </div>
+            <button class="btn" id="addManualBtn">Add to List</button>
+            <div id="manualStatus"></div>
+        </div>
+
+        <div class="hint" style="padding:0 4px;">
+            Only generate certificates for tax that was genuinely withheld and deposited &mdash; this tool formats and totals your data, it does not verify deposits against FBR/bank records.
+        </div>
+    </div>
+
+    <!-- ============ MAIN ============ -->
+    <div class="main">
+
+        <div class="toolbar">
+            <div class="title" id="mainTitle">Import payroll data to begin</div>
+            <div class="actions" id="toolbarActions" style="display:none;">
+                <button class="btn secondary" id="downloadAllBtn">Download Individual PDFs</button>
+                <button class="btn secondary" id="printAllBtn">Print Batch (1 PDF)</button>
+                <button class="btn" id="printOneBtn">Print Current</button>
+            </div>
+        </div>
+
+        <div id="empSection" style="display:none;">
+            <div class="emp-table-wrap">
+                <table class="emp-table" id="empTable">
+                    <thead>
+                        <tr>
+                            <th style="width:26px;"><input type="checkbox" class="chk" id="selectAll"></th>
+                            <th>Cert. No.</th>
+                            <th>Employee</th>
+                            <th>CNIC</th>
+                            <th class="num">Gross Amount</th>
+                            <th class="num">Total Tax</th>
+                            <th>Deposits</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="empTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+            <div class="big">&#128196;</div>
+            No data loaded yet.<br>Upload your payroll workbook from the left panel to generate certificates.
+        </div>
+
+        <div id="previewHolder"></div>
+    </div>
+
+</div>
+
+<!-- Hidden container used only when printing "all selected" -->
+<div id="batchPrintRoot" style="display:none;"></div>
+
+<!-- Download progress overlay -->
+<div id="downloadOverlay">
+    <div class="dl-card">
+        <div class="dl-spinner"></div>
+        <div class="dl-title">Generating PDFs&hellip;</div>
+        <div class="dl-sub" id="dlSubText">Preparing certificates&hellip;</div>
+        <div class="dl-bar-wrap"><div class="dl-bar" id="dlBar"></div></div>
+        <div class="dl-count" id="dlCount"></div>
+    </div>
+</div>
+
+<script>
+(function(){
+
+    /* ---------------- State ---------------- */
+    let employees = [];       
+    let selectedCert = null;  
+    let selectedSet = new Set(); 
+    let companyLogoDataUrl = null; 
+
+    /* ---------------- Helpers ---------------- */
+    function fmtMoney(n){
+        if (n === null || n === undefined || isNaN(n)) return '0';
+        return Math.round(n).toLocaleString('en-US');
+    }
+    function excelDateToJS(v){
+        if (v instanceof Date) return v;
+        if (typeof v === 'number'){
+            const utc = XLSX.SSF ? null : null;
+            const parsed = XLSX.SSF.parse_date_code(v);
+            if (parsed) return new Date(parsed.y, parsed.m-1, parsed.d);
+        }
+        if (typeof v === 'string'){
+            const d = new Date(v);
+            if (!isNaN(d)) return d;
+        }
+        return null;
+    }
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function fmtShort(d){ 
+        if(!d) return '';
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const yy = String(d.getFullYear()).slice(-2);
+        return `${dd}-${mm}-${yy}`;
+    }
+    function fmtLong(d){ 
+        if(!d) return '';
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mon = MONTHS[d.getMonth()];
+        const yy = String(d.getFullYear()).slice(-2);
+        return `${dd}-${mon}-${yy}`;
+    }
+    function esc(s){
+        return String(s === undefined || s === null ? '' : s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function normCNIC(v){ return String(v||'').trim(); }
+
+    /* ---------------- Certificate templates ---------------- */
+    const CERT_TEMPLATES = {
+        salary149:  { sectionNo: '149', paymentNature: 'Payment of Salaries', valueLabel: 'gross salary' },
+        goods153:   { sectionNo: '153', paymentNature: 'Payments for Goods, Services or Contracts', valueLabel: 'gross value of payment' },
+        rent155:    { sectionNo: '155', paymentNature: 'Rent of Immovable Property', valueLabel: 'gross rent' },
+        profit151:  { sectionNo: '151', paymentNature: 'Profit on Debt / Yield on Investment', valueLabel: 'gross profit' },
+        custom:     { sectionNo: '', paymentNature: '', valueLabel: 'value/amount' }
+    };
+    function applyCertTemplate(key){
+        const t = CERT_TEMPLATES[key];
+        if (!t || key === 'custom') return;
+        document.getElementById('sectionNo').value = t.sectionNo;
+        document.getElementById('paymentNature').value = t.paymentNature;
+    }
+
+    /* ---------------- Excel parsing ---------------- */
+    function scoreSummarySheet(rows){
+        for (let i=0;i<Math.min(rows.length,15);i++){
+            const row = rows[i].map(c=>String(c||'').toLowerCase().trim());
+            const hasName = row.some(c=>c==='name');
+            const hasCnic = row.some(c=>c.includes('cnic'));
+            const hasAmt  = row.some(c=>c.includes('amount'));
+            const hasTax  = row.some(c=>c.includes('tax'));
+            if (hasName && hasCnic && hasAmt && hasTax) return i;
+        }
+        return -1;
+    }
+    function scoreDetailSheet(rows){
+        for (let i=0;i<Math.min(rows.length,15);i++){
+            const row = rows[i].map(c=>String(c||'').toLowerCase().trim());
+            const hasCnic = row.some(c=>c.includes('cnic'));
+            const hasDate = row.some(c=>c.includes('date'));
+            const hasTax  = row.some(c=>c==='tax');
+            const hasCPR  = row.some(c=>c.includes('cpr'));
+            if (hasCnic && hasDate && hasTax && hasCPR) return i;
+        }
+        return -1;
+    }
+    function colIndex(headerRow, matcher){
+        for (let i=0;i<headerRow.length;i++){
+            if (matcher(String(headerRow[i]||'').toLowerCase().trim())) return i;
+        }
+        return -1;
+    }
+
+    function parseWorkbook(wb){
+        let summarySheet=null, summaryHeaderIdx=-1;
+        let detailSheet=null, detailHeaderIdx=-1;
+
+        wb.SheetNames.forEach(name=>{
+            const ws = wb.Sheets[name];
+            const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+            const sIdx = scoreSummarySheet(rows);
+            const dIdx = scoreDetailSheet(rows);
+            if (sIdx>=0 && !summarySheet){ summarySheet=rows; summaryHeaderIdx=sIdx; }
+            if (dIdx>=0 && !detailSheet){ detailSheet=rows; detailHeaderIdx=dIdx; }
+        });
+
+        if (!summarySheet) throw new Error('Could not find a summary sheet with Name / CNIC / Sum of Amount / Sum of Tax columns.');
+        if (!detailSheet) throw new Error('Could not find a detail sheet with CNIC / Date / Tax / CPR No columns.');
+
+        const sHeader = summarySheet[summaryHeaderIdx];
+        const cName = colIndex(sHeader, c=>c==='name');
+        const cCnic = colIndex(sHeader, c=>c.includes('cnic'));
+        const cAmt  = colIndex(sHeader, c=>c.includes('amount'));
+        const cTax  = colIndex(sHeader, c=>c.includes('tax'));
+        
+        let cAddr = colIndex(sHeader, c=>c.includes('address'));
+        if (cAddr === -1){
+            const used = new Set([cName,cCnic,cAmt,cTax]);
+            for (let i=0;i<sHeader.length;i++){
+                if (!used.has(i)) { cAddr = i; break; }
+            }
+        }
+
+        const empMap = {}; 
+        let serial = 1;
+        for (let r=summaryHeaderIdx+1;r<summarySheet.length;r++){
+            const row = summarySheet[r];
+            if (!row) continue;
+            const name = row[cName];
+            const cnic = normCNIC(row[cCnic]);
+            if (!name || !cnic) continue;
+            if (String(name).toLowerCase().includes('grand total')) continue;
+            const certNo = document.getElementById('certPrefix').value + String(serial).padStart(3,'0');
+            empMap[cnic] = {
+                certNo: certNo,
+                name: String(name).trim(),
+                cnic: cnic,
+                address: cAddr>=0 ? String(row[cAddr]||'').trim() : '',
+                gross: Number(row[cAmt])||0,
+                taxSummary: Number(row[cTax])||0,
+                rows: []
+            };
+            serial++;
+        }
+
+        const dHeader = detailSheet[detailHeaderIdx];
+        const dCnic = colIndex(dHeader, c=>c.includes('cnic'));
+        const dDate = colIndex(dHeader, c=>c.includes('date'));
+        const dTax  = colIndex(dHeader, c=>c==='tax');
+        const dCPR  = colIndex(dHeader, c=>c.includes('cpr'));
+        const dBank = colIndex(dHeader, c=>c.includes('bank'));
+        const dBranch = colIndex(dHeader, c=>c.includes('branch'));
+
+        for (let r=detailHeaderIdx+1;r<detailSheet.length;r++){
+            const row = detailSheet[r];
+            if (!row) continue;
+            const cnic = normCNIC(row[dCnic]);
+            if (!cnic || !empMap[cnic]) continue;
+            const dateVal = excelDateToJS(row[dDate]);
+            empMap[cnic].rows.push({
+                dateObj: dateVal,
+                date: fmtShort(dateVal),
+                bank: dBank>=0 && row[dBank] ? String(row[dBank]) : document.getElementById('defaultBank').value,
+                branch: dBranch>=0 && row[dBranch] ? String(row[dBranch]) : document.getElementById('defaultBranch').value,
+                amount: Number(row[dTax])||0,
+                cpr: dCPR>=0 ? String(row[dCPR]||'') : ''
+            });
+        }
+
+        const list = Object.values(empMap).map(e=>{
+            e.rows.sort((a,b)=> (a.dateObj&&b.dateObj) ? a.dateObj-b.dateObj : 0);
+            e.computedTax = e.rows.reduce((s,r)=>s+r.amount,0);
+            e.mismatch = Math.abs(e.computedTax - e.taxSummary) > 1;
+            e.periodFrom = e.rows.length ? fmtLong(e.rows[0].dateObj) : '';
+            e.periodTo = e.rows.length ? fmtLong(e.rows[e.rows.length-1].dateObj) : '';
+            return e;
+        }).filter(e=>e.rows.length>0);
+
+        list.sort((a,b)=> a.name.localeCompare(b.name));
+        return list;
+    }
+
+    /* ---------------- Rendering: employee table ---------------- */
+    function renderEmpTable(){
+        const tbody = document.getElementById('empTableBody');
+        tbody.innerHTML = employees.map(e=>{
+            const badge = e.mismatch
+                ? `<span class="badge-mismatch" title="Deposit rows sum to ${fmtMoney(e.computedTax)} but summary sheet says ${fmtMoney(e.taxSummary)}">check total</span>`
+                : `<span class="badge-ok">ok</span>`;
+            const checked = selectedSet.has(e.cnic) ? 'checked' : '';
+            const rowSel = selectedCert === e.cnic ? 'selected' : '';
+            return `
+            <tr class="${rowSel}" data-cnic="${esc(e.cnic)}">
+                <td><input type="checkbox" class="chk row-chk" data-cnic="${esc(e.cnic)}" ${checked}></td>
+                <td>${esc(e.certNo)}</td>
+                <td>${esc(e.name)}</td>
+                <td>${esc(e.cnic)}</td>
+                <td class="num">${fmtMoney(e.gross)}</td>
+                <td class="num">${fmtMoney(e.computedTax)} ${badge}</td>
+                <td>${e.rows.length}</td>
+                <td><button class="btn small secondary view-btn" data-cnic="${esc(e.cnic)}">Preview</button></td>
+            </tr>`;
+        }).join('');
+
+        tbody.querySelectorAll('tr').forEach(tr=>{
+            tr.addEventListener('click', (ev)=>{
+                if (ev.target.tagName==='INPUT' || ev.target.tagName==='BUTTON') return;
+                selectEmployee(tr.dataset.cnic);
+            });
+        });
+        tbody.querySelectorAll('.view-btn').forEach(b=>{
+            b.addEventListener('click', ()=> selectEmployee(b.dataset.cnic));
+        });
+        tbody.querySelectorAll('.row-chk').forEach(cb=>{
+            cb.addEventListener('change', ()=>{
+                if (cb.checked) selectedSet.add(cb.dataset.cnic);
+                else selectedSet.delete(cb.dataset.cnic);
+            });
+        });
+    }
+
+    /* ---------------- Rendering: certificate HTML ---------------- */
+    function certShellClass(extra){
+        const design = document.getElementById('certDesign').value;
+        const cls = ['cert-shell'];
+        if (design && design !== 'navy') cls.push('style-' + design);
+        if (extra) cls.push(extra);
+        return cls.join(' ');
+    }
+
+    function certificateHTML(e){
+        const company = {
+            name: document.getElementById('companyName').value,
+            address: document.getElementById('companyAddress').value,
+            ntn: document.getElementById('companyNTN').value,
+            issueDate: document.getElementById('issueDate').value || '',
+            logo: companyLogoDataUrl,
+        };
+        const sectionNo = document.getElementById('sectionNo').value;
+        const copyType = document.getElementById('copyType').value;
+        const paymentNature = document.getElementById('paymentNature').value;
+        const templateKey = document.getElementById('certTemplate').value;
+        const valueLabel = (CERT_TEMPLATES[templateKey] && CERT_TEMPLATES[templateKey].valueLabel) || 'value/amount';
+        const design = document.getElementById('certDesign').value;
+
+        // Use manual period inputs if provided, else fallback to auto-calculated dates
+        const manualFrom = document.getElementById('manualPeriodFrom').value.trim();
+        const manualTo = document.getElementById('manualPeriodTo').value.trim();
+        const displayFrom = manualFrom ? manualFrom : e.periodFrom;
+        const displayTo = manualTo ? manualTo : e.periodTo;
+
+        const rowsHtml = e.rows.map(r=>`
+            <tr>
+                <td class="col-center">${esc(r.date)}</td>
+                <td class="col-center">${esc(r.bank)}</td>
+                <td class="col-center">${esc(r.branch)}</td>
+                <td class="col-right">${fmtMoney(r.amount)}</td>
+                <td class="col-mono">${esc(r.cpr)}</td>
+            </tr>`).join('');
+
+        const rowsHtmlCprFirst = e.rows.map(r=>`
+            <tr>
+                <td class="col-center">${esc(r.date)}</td>
+                <td class="col-center">${esc(r.bank)}</td>
+                <td class="col-center">${esc(r.branch)}</td>
+                <td class="col-mono">${esc(r.cpr)}</td>
+                <td class="col-right">${fmtMoney(r.amount)}</td>
+            </tr>`).join('');
+
+        const ctx = { e, company, sectionNo, copyType, paymentNature, valueLabel, displayFrom, displayTo, rowsHtml, rowsHtmlCprFirst };
+        if (design === 'premium') return premiumCertBody(ctx);
+        if (design === 'modern') return modernCertBody(ctx);
+        return defaultCertBody(ctx);
+    }
+
+    function defaultCertBody(ctx){
+        const { e, company, sectionNo, copyType, paymentNature, valueLabel, displayFrom, displayTo, rowsHtml } = ctx;
+        return `
+        <div class="border-wrapper">
+            <table class="header-table">
+                <tr>
+                    <td class="header-left">
+                        <div class="header-left-inner">
+                            ${company.logo
+                                ? `<img src="${company.logo}" class="header-logo-solo" alt="Company logo">`
+                                : `<h1>${esc(company.name)}</h1>`}
+                        </div>
+                    </td>
+                    <td class="header-right">
+                        S. No.: ${esc(e.certNo)}<br>
+                        Date of Issue: ${esc(company.issueDate)}<br>
+                        <span class="badge">${esc(copyType)}</span>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="title-box">
+                <h2>Certificate of Collection or Deduction of Tax</h2>
+                <p>Under Section ${esc(sectionNo)} of Income Tax Ordinance 2001 (See Rule 42)</p>
+            </div>
+
+            <p class="cert-body">
+                Certified that a sum of <span class="highlight">Rupees ${fmtMoney(e.computedTax)}</span> on account of Income Tax has been deducted from Mr/Ms. <span class="highlight">${esc(e.name)}</span>, Address: <span class="highlight">${esc(e.address)}</span>, holder of NTN/CNIC No. <span class="highlight">${esc(e.cnic)}</span> during the period from <span class="highlight">${esc(displayFrom)}</span> to <span class="highlight">${esc(displayTo)}</span> under section ${esc(sectionNo)} of Income Tax Ordinance 2001 on account of ${esc(paymentNature)} on the ${esc(valueLabel)} of <span class="highlight">Rupees ${fmtMoney(e.gross)}</span>.
+            </p>
+
+            <p style="font-size:9pt;font-weight:bold;margin-bottom:6px;color:#111827;">
+                This is to further certify that the tax collected/deducted has been deposited in the Federal Government Account as per the following details:
+            </p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:12%;text-align:center;">Date</th>
+                        <th style="width:24%;text-align:center;">SBP/NBP/TREASURY</th>
+                        <th style="width:15%;text-align:center;">Branch/City</th>
+                        <th style="width:16%;text-align:right;">Tax Amount</th>
+                        <th style="width:33%;text-align:center;">Challan / CPR No.</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" style="text-align:right;padding-right:15px;font-weight:bold;background:#e5e7eb;border:1px solid #cbd5e0;">Total:</td>
+                        <td class="col-right" style="font-weight:bold;background:#e5e7eb;border:1px solid #cbd5e0;">${fmtMoney(e.computedTax)}</td>
+                        <td style="background:#e5e7eb;border:1px solid #cbd5e0;">&nbsp;</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="footer-box">
+                <div class="footer-label">Company/office etc. collecting/deducting the tax:</div>
+                <table class="footer-info-table">
+                    <tr><td style="width:15%;font-weight:bold;color:var(--certA);">Name:</td><td>${esc(company.name)}</td></tr>
+                    <tr><td style="font-weight:bold;color:var(--certA);">Address:</td><td>${esc(company.address)}</td></tr>
+                    <tr><td style="font-weight:bold;color:var(--certA);">NTN / Date:</td><td>${esc(company.ntn)} &nbsp;&nbsp;|&nbsp;&nbsp; ${esc(company.issueDate)}</td></tr>
+                </table>
+            </div>
+
+            <div class="system-note">
+                *********** System Generated document, does not require any signature or stamp. ***********
+            </div>
+        </div>`;
+    }
+
+    function premiumCertBody(ctx){
+        const { e, company, sectionNo, copyType, paymentNature, valueLabel, displayFrom, displayTo, rowsHtmlCprFirst } = ctx;
+        return `
+        <div class="border-wrapper tpl-premium">
+            <div class="prem-header">
+                ${company.logo ? `<img src="${company.logo}" class="header-logo-solo" alt="Company logo">` : `<h1>${esc(company.name)}</h1>`}
+                <p>${esc(company.address)} &nbsp;|&nbsp; NTN: ${esc(company.ntn)}</p>
+            </div>
+
+            <div class="prem-title">
+                <h2>CERTIFICATE OF TAX DEDUCTION</h2>
+                <p>Under Section ${esc(sectionNo)} of Income Tax Ordinance 2001 (See Rule 42)</p>
+            </div>
+
+            <div class="prem-grid">
+                <div class="prem-field"><div class="prem-label">TAXPAYER NAME</div><div class="prem-value">Mr/Ms. ${esc(e.name)}</div></div>
+                <div class="prem-field"><div class="prem-label">NTN / CNIC NUMBER</div><div class="prem-value">${esc(e.cnic)}</div></div>
+                <div class="prem-field wide"><div class="prem-label">REGISTERED ADDRESS</div><div class="prem-value">${esc(e.address)}</div></div>
+                <div class="prem-field"><div class="prem-label">CERTIFICATE NUMBER</div><div class="prem-value">${esc(e.certNo)}</div></div>
+                <div class="prem-field"><div class="prem-label">DATE OF ISSUE</div><div class="prem-value">${esc(company.issueDate)}</div></div>
+                <div class="prem-field"><div class="prem-label">DOCUMENT STATUS</div><div class="prem-value">${esc(copyType)}</div></div>
+            </div>
+
+            <p class="prem-body">This is to certify that a sum of Rupees ${fmtMoney(e.computedTax)} has been deducted on account of Income Tax from the taxpayer mentioned above, during the period from ${esc(displayFrom)} to ${esc(displayTo)}. The deduction was made under Section ${esc(sectionNo)} of the Income Tax Ordinance 2001 on account of ${esc(paymentNature)} on the total ${esc(valueLabel)} of Rupees ${fmtMoney(e.gross)}.</p>
+            <p class="prem-body">The collected/deducted tax has been deposited into the Federal Government Account as detailed below:</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:12%;text-align:center;">Deposit Date</th>
+                        <th style="width:22%;text-align:center;">Bank / Treasury</th>
+                        <th style="width:15%;text-align:center;">Branch / City</th>
+                        <th style="width:35%;text-align:center;">Challan / CPR No.</th>
+                        <th style="width:16%;text-align:right;">Tax Amount (PKR)</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtmlCprFirst}</tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" style="text-align:right;padding-right:15px;font-weight:bold;background:var(--certA-bg);border:1px solid #cbd5e0;">Total Deducted Amount:</td>
+                        <td style="background:var(--certA-bg);border:1px solid #cbd5e0;">&nbsp;</td>
+                        <td class="col-right" style="font-weight:bold;background:var(--certA-bg);border:1px solid #cbd5e0;">${fmtMoney(e.computedTax)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="prem-footer">This is a system-generated secure document and does not require a physical signature or official stamp.<br>Generated on ${esc(company.issueDate)} for tax compliance purposes.</div>
+        </div>`;
+    }
+
+    function modernCertBody(ctx){
+        const { e, company, sectionNo, copyType, paymentNature, displayFrom, displayTo, rowsHtmlCprFirst } = ctx;
+        return `
+        <div class="border-wrapper tpl-modern">
+            <div class="mod-header">
+                <div>
+                    ${company.logo ? `<img src="${company.logo}" class="header-logo-solo" alt="Company logo">` : `<h1>${esc(company.name)}</h1>`}
+                    <p>${esc(company.address)}<br>NTN: ${esc(company.ntn)}</p>
+                </div>
+                <div class="mod-meta">
+                    Ref No: ${esc(e.certNo)}<br>
+                    Date: ${esc(company.issueDate)}<br>
+                    Status: ${esc(copyType)}
+                </div>
+            </div>
+
+            <h2 class="mod-title">TAX CERTIFICATE</h2>
+
+            <div class="mod-section">
+                <div class="mod-section-title">Taxpayer Details</div>
+                Mr/Ms. ${esc(e.name)}<br>
+                NTN/CNIC: ${esc(e.cnic)}<br>
+                ${esc(e.address)}
+            </div>
+
+            <div class="mod-section">
+                <div class="mod-section-title">Deduction Summary</div>
+                Total Tax Deducted: PKR ${fmtMoney(e.computedTax)}<br>
+                Nature of Payment: ${esc(paymentNature)} (Value: PKR ${fmtMoney(e.gross)})<br>
+                Applicable Period: ${esc(displayFrom)} to ${esc(displayTo)}
+            </div>
+
+            <p class="mod-body">Certified that the above-mentioned sum has been collected/deducted on account of Income Tax under Section ${esc(sectionNo)} of the Income Tax Ordinance 2001 (See Rule 42). This is to further certify that the tax collected/deducted has been deposited in the Federal Government Account as per the following details:</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:12%;text-align:center;">Deposit Date</th>
+                        <th style="width:22%;text-align:center;">Bank / Treasury</th>
+                        <th style="width:15%;text-align:center;">Branch / City</th>
+                        <th style="width:35%;text-align:center;">Challan / CPR No.</th>
+                        <th style="width:16%;text-align:right;">Tax Amount (PKR)</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtmlCprFirst}</tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" style="text-align:right;padding-right:15px;font-weight:bold;background:var(--certA-bg);border:1px solid #cbd5e0;">TOTAL DEPOSITED AMOUNT</td>
+                        <td class="col-right" style="font-weight:bold;background:var(--certA-bg);border:1px solid #cbd5e0;">${fmtMoney(e.computedTax)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="mod-footer">System Generated Document &mdash; Does not require a physical signature or official stamp.<br>Issued strictly in compliance with Section ${esc(sectionNo)} of the Income Tax Ordinance, 2001.</div>
+        </div>`;
+    }
+
+    function selectEmployee(cnic){
+        selectedCert = cnic;
+        const e = employees.find(x=>x.cnic===cnic);
+        const holder = document.getElementById('previewHolder');
+        if (!e){ holder.innerHTML=''; return; }
+        holder.innerHTML = `<div class="${certShellClass('print-single')}">${certificateHTML(e)}</div>`;
+        renderEmpTable();
+        holder.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    /* ---------------- Sidebar Listeners for live-preview update ---------------- */
+    const inputsToWatch = [
+        'companyName', 'companyAddress', 'companyNTN', 'issueDate',
+        'sectionNo', 'copyType', 'manualPeriodFrom', 'manualPeriodTo',
+        'paymentNature', 'defaultBank', 'defaultBranch', 'certTemplate', 'certDesign'
+    ];
+    inputsToWatch.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.addEventListener('input', () => {
+                if(selectedCert) selectEmployee(selectedCert);
+            });
+            el.addEventListener('change', () => {
+                if(selectedCert) selectEmployee(selectedCert);
+            });
+        }
+    });
+    document.getElementById('certTemplate').addEventListener('change', (e) => {
+        applyCertTemplate(e.target.value);
+        if (selectedCert) selectEmployee(selectedCert);
+    });
+
+    document.querySelectorAll('#certDesignGrid .tpl-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#certDesignGrid .tpl-chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const sel = document.getElementById('certDesign');
+            sel.value = btn.dataset.val;
+            sel.dispatchEvent(new Event('change'));
+        });
+    });
+
+    /* ---------------- File handling ---------------- */
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    dropzone.addEventListener('click', ()=>fileInput.click());
+    dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+    dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e=>{
+        e.preventDefault(); dropzone.classList.remove('drag');
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e=>{
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file){
+        const statusEl = document.getElementById('parseStatus');
+        const pillHolder = document.getElementById('filepillHolder');
+        pillHolder.innerHTML = `<div class="filepill"><span>&#128196; ${esc(file.name)}</span><button id="clearFile">&times;</button></div>`;
+        document.getElementById('clearFile').addEventListener('click', (ev)=>{
+            ev.stopPropagation();
+            pillHolder.innerHTML='';
+            statusEl.innerHTML='';
+            employees=[]; selectedCert=null; selectedSet.clear();
+            document.getElementById('empSection').style.display='none';
+            document.getElementById('emptyState').style.display='';
+            document.getElementById('toolbarActions').style.display='none';
+            document.getElementById('mainTitle').textContent='Import payroll data to begin';
+            document.getElementById('previewHolder').innerHTML='';
+        });
+
+        statusEl.innerHTML = `<div class="status warn">Parsing workbook&hellip;</div>`;
+        const reader = new FileReader();
+        reader.onload = function(ev){
+            try{
+                const data = new Uint8Array(ev.target.result);
+                const wb = XLSX.read(data, {type:'array', cellDates:true});
+                employees = parseWorkbook(wb);
+                if (employees.length===0){
+                    statusEl.innerHTML = `<div class="status err">No matching employee records found. Check the column headers in your file.</div>`;
+                    return;
+                }
+                const mismatches = employees.filter(e=>e.mismatch).length;
+                statusEl.innerHTML = mismatches
+                    ? `<div class="status warn">Loaded ${employees.length} employees. ${mismatches} have a totals mismatch &mdash; check the "check total" badge before issuing.</div>`
+                    : `<div class="status ok">Loaded ${employees.length} employees. All deposit totals reconcile with the summary sheet.</div>`;
+
+                document.getElementById('emptyState').style.display='none';
+                document.getElementById('empSection').style.display='';
+                document.getElementById('toolbarActions').style.display='flex';
+                document.getElementById('mainTitle').textContent = `${employees.length} employee${employees.length>1?'s':''} ready`;
+                selectedSet = new Set(employees.map(e=>e.cnic));
+                renderEmpTable();
+                selectEmployee(employees[0].cnic);
+            }catch(err){
+                console.error(err);
+                statusEl.innerHTML = `<div class="status err">Could not parse this file: ${esc(err.message)}</div>`;
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    /* ---------------- CPR PDF extraction ---------------- */
+    if (window.pdfjsLib) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    function parseDMonY(str){
+        if (!str) return null;
+        const m = String(str).match(/(\d{1,2})[\s-]([A-Za-z]{3})[\s-](\d{2,4})/);
+        if (!m) return null;
+        const day = +m[1];
+        let year = +m[3];
+        if (year < 100) year += 2000;
+        const idx = MONTHS.findIndex(mo => mo.toLowerCase() === m[2].toLowerCase());
+        if (idx < 0) return null;
+        return new Date(year, idx, day);
+    }
+
+    async function extractPdfLines(file){
+        const buf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+        const lines = [];
+        for (let p = 1; p <= pdf.numPages; p++){
+            const page = await pdf.getPage(p);
+            const content = await page.getTextContent();
+            const items = content.items
+                .map(it => ({ text: it.str, x: it.transform[4], y: it.transform[5] }))
+                .filter(it => it.text && it.text.trim() !== '');
+            items.sort((a,b) => (b.y - a.y) || (a.x - b.x));
+            let current = null, currentY = null;
+            items.forEach(it => {
+                if (current === null || Math.abs(it.y - currentY) > 3){
+                    current = []; lines.push(current); currentY = it.y;
+                }
+                current.push(it);
+            });
+        }
+        return lines.map(g => g.sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean);
+    }
+
+    function parseCPRLines(lines){
+        const fullText = lines.join('\n');
+        const grab = (re) => { const m = fullText.match(re); return m ? m[1].trim() : ''; };
+
+        const cprNo = grab(/CPR\s*No\s*:?\s*([A-Z0-9-]+)/i);
+        const paymentDateStr = grab(/Payment\s*Date\s*:?\s*([\d]{1,2}[\s-][A-Za-z]{3}[\s-][\d]{2,4})/i);
+        const rtoLto = grab(/RTO\s*\/\s*LTO\s*:?\s*([A-Za-z .-]+?)(?=\s{2,}|$)/i);
+        const agentName = grab(/\bName\s*:?\s*([A-Z0-9 &().,'-]{3,})/);
+        const agentNTN = grab(/NTN\s*\/\s*FTN\s*:?\s*([\d-]+)/i);
+        const paymentMode = grab(/(ADC\s*\(e-payment\)|e-payment|Cheque|Cash|Bank\s*Transfer)/i);
+
+        const sectionMatch = fullText.match(/Payment\s*Section\s*:?\s*(\d{1,4})\s*-\s*(.+?)\s+u\/s/i);
+        const sectionNoExtracted = sectionMatch ? sectionMatch[1] : '';
+        const paymentNatureExtracted = sectionMatch ? sectionMatch[2].trim() : '';
+
+        const headerRe = /^(\d{1,3})\s+((?:RTO(?:-II)?\s*)?)(IND|AOP|COP|FRM|GOVT|COY)\s*\/\s*(.+?)\s+(\d{1,4})\s*\/\s*([A-Za-z0-9]+)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)\s*$/;
+        const cnicRe = /^(\d{5}-\d{7}-\d)\b\s*(.*)$/;
+
+        const records = [];
+        let i = 0;
+        while (i < lines.length){
+            const m = lines[i].match(headerRe);
+            if (m){
+                const name = m[4].trim();
+                const section = m[5];
+                const amount = parseFloat(m[7].replace(/,/g,'')) || 0;
+                const tax = parseFloat(m[8].replace(/,/g,'')) || 0;
+                let j = i + 1;
+                while (j < lines.length && !cnicRe.test(lines[j]) && !headerRe.test(lines[j])) j++;
+                let cnic = null, addrParts = [];
+                if (j < lines.length && cnicRe.test(lines[j])){
+                    const cm = lines[j].match(cnicRe);
+                    cnic = cm[1];
+                    if (cm[2]) addrParts.push(cm[2]);
+                    j++;
+                    while (j < lines.length && !headerRe.test(lines[j])){
+                        if (!/^total\s*:/i.test(lines[j]) && !/^amount of tax/i.test(lines[j])) addrParts.push(lines[j]);
+                        j++;
+                    }
+                }
+                if (cnic){
+                    records.push({
+                        name, cnic, section, amount, tax,
+                        address: addrParts.join(' ').replace(/\s+/g,' ').trim(),
+                        cprNo, dateObj: parseDMonY(paymentDateStr),
+                        bank: paymentMode || '', branch: rtoLto || ''
+                    });
+                }
+                i = j;
+            } else {
+                i++;
+            }
+        }
+        return { records, cprNo, agentName, agentNTN, sectionNoExtracted, paymentNatureExtracted };
+    }
+
+    function mergeCPRRecords(records){
+        records.forEach(rec => {
+            let emp = employees.find(x => x.cnic === rec.cnic);
+            if (!emp){
+                emp = {
+                    certNo: document.getElementById('certPrefix').value + String(employees.length + 1).padStart(3,'0'),
+                    name: rec.name, cnic: rec.cnic, address: rec.address,
+                    gross: 0, taxSummary: 0, rows: []
+                };
+                employees.push(emp);
+            }
+            if (rec.address && (!emp.address || emp.address.length < rec.address.length)) emp.address = rec.address;
+            emp.gross += rec.amount;
+            emp.rows.push({
+                dateObj: rec.dateObj,
+                date: fmtShort(rec.dateObj),
+                bank: rec.bank || document.getElementById('defaultBank').value,
+                branch: rec.branch || document.getElementById('defaultBranch').value,
+                amount: rec.tax,
+                cpr: rec.cprNo
+            });
+        });
+        employees.forEach(e => {
+            e.rows.sort((a,b) => (a.dateObj && b.dateObj) ? a.dateObj - b.dateObj : 0);
+            e.computedTax = e.rows.reduce((s,r) => s + r.amount, 0);
+            e.taxSummary = e.computedTax;
+            e.mismatch = false;
+            e.periodFrom = e.rows.length ? fmtLong(e.rows[0].dateObj) : '';
+            e.periodTo = e.rows.length ? fmtLong(e.rows[e.rows.length-1].dateObj) : '';
+        });
+        employees.sort((a,b) => a.name.localeCompare(b.name));
+    }
+
+    function showLoadedEmployees(statusHtml){
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('empSection').style.display = '';
+        document.getElementById('toolbarActions').style.display = 'flex';
+        document.getElementById('mainTitle').textContent = `${employees.length} employee${employees.length>1?'s':''} ready`;
+        selectedSet = new Set(employees.map(e=>e.cnic));
+        renderEmpTable();
+        selectEmployee(employees[0].cnic);
+        if (statusHtml) document.getElementById('cprParseStatus').innerHTML = statusHtml;
+    }
+
+    const cprDropzone = document.getElementById('cprDropzone');
+    const cprInput = document.getElementById('cprInput');
+    const cprPillHolder = document.getElementById('cprPillHolder');
+    const cprStatusEl = document.getElementById('cprParseStatus');
+    let cprFilesLoaded = [];
+
+    cprDropzone.addEventListener('click', () => cprInput.click());
+    cprDropzone.addEventListener('dragover', e => { e.preventDefault(); cprDropzone.classList.add('drag'); });
+    cprDropzone.addEventListener('dragleave', () => cprDropzone.classList.remove('drag'));
+    cprDropzone.addEventListener('drop', e => {
+        e.preventDefault(); cprDropzone.classList.remove('drag');
+        if (e.dataTransfer.files.length) handleCPRFiles(Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)));
+    });
+    cprInput.addEventListener('change', e => {
+        if (e.target.files.length) handleCPRFiles(Array.from(e.target.files));
+    });
+
+    document.getElementById('clearCprBtn').addEventListener('click', () => {
+        employees = []; selectedCert = null; selectedSet.clear(); cprFilesLoaded = [];
+        cprPillHolder.innerHTML = ''; cprStatusEl.innerHTML = '';
+        document.getElementById('clearCprBtn').style.display = 'none';
+        document.getElementById('empSection').style.display = 'none';
+        document.getElementById('emptyState').style.display = '';
+        document.getElementById('toolbarActions').style.display = 'none';
+        document.getElementById('mainTitle').textContent = 'Import payroll data to begin';
+        document.getElementById('previewHolder').innerHTML = '';
+    });
+
+    async function handleCPRFiles(files){
+        if (!files || !files.length) return;
+        cprStatusEl.innerHTML = `<div class="status warn">Reading ${files.length} CPR${files.length>1?'s':''}&hellip;</div>`;
+        let totalRecords = 0, firstHeaderApplied = false;
+        const defaultCompanyName = 'AAS ENTERPRISES (PVT) LTD.';
+        const defaultCompanyNTN = '3281450-0';
+
+        for (const file of files){
+            try{
+                const lines = await extractPdfLines(file);
+                const parsed = parseCPRLines(lines);
+                if (!parsed.records.length){
+                    cprStatusEl.innerHTML = `<div class="status err">Couldn't find any taxpayer rows in "${esc(file.name)}". The layout may not match a standard FBR CPR.</div>`;
+                    continue;
+                }
+                mergeCPRRecords(parsed.records);
+                totalRecords += parsed.records.length;
+                cprFilesLoaded.push(file.name);
+
+                if (!firstHeaderApplied){
+                    const compEl = document.getElementById('companyName');
+                    const ntnEl = document.getElementById('companyNTN');
+                    if (parsed.agentName && (!compEl.value || compEl.value === defaultCompanyName)) compEl.value = parsed.agentName;
+                    if (parsed.agentNTN && (!ntnEl.value || ntnEl.value === defaultCompanyNTN)) ntnEl.value = parsed.agentNTN;
+
+                    const secEl = document.getElementById('sectionNo');
+                    const natEl = document.getElementById('paymentNature');
+                    if (parsed.sectionNoExtracted && secEl.value === '149' && parsed.sectionNoExtracted !== '149') secEl.value = parsed.sectionNoExtracted;
+                    if (parsed.paymentNatureExtracted && (!natEl.value || natEl.value === 'Payment of Salaries')) natEl.value = parsed.paymentNatureExtracted;
+
+                    const tplEl = document.getElementById('certTemplate');
+                    const matchedTpl = Object.keys(CERT_TEMPLATES).find(k => CERT_TEMPLATES[k].sectionNo === parsed.sectionNoExtracted);
+                    if (matchedTpl) tplEl.value = matchedTpl;
+                    else if (parsed.sectionNoExtracted && parsed.sectionNoExtracted !== '149') tplEl.value = 'custom';
+                    firstHeaderApplied = true;
+                }
+            } catch(err){
+                console.error(err);
+                cprStatusEl.innerHTML = `<div class="status err">Could not read "${esc(file.name)}": ${esc(err.message)}</div>`;
+            }
+        }
+
+        cprPillHolder.innerHTML = cprFilesLoaded.map(n => `<div class="filepill"><span>&#128203; ${esc(n)}</span></div>`).join('');
+        document.getElementById('clearCprBtn').style.display = cprFilesLoaded.length ? '' : 'none';
+
+        if (employees.length){
+            const mismatches = employees.filter(e=>e.mismatch).length;
+            showLoadedEmployees(`<div class="status ok">Extracted ${employees.length} taxpayer${employees.length>1?'s':''} from ${cprFilesLoaded.length} CPR${cprFilesLoaded.length>1?'s':''}. Review names/addresses &mdash; wrapped text is auto-joined and may need a touch-up on the odd row.</div>`);
+        }
+    }
+
+    document.getElementById('addManualBtn').addEventListener('click', () => {
+        const name = document.getElementById('manName').value.trim();
+        const cnic = normCNIC(document.getElementById('manCnic').value);
+        const address = document.getElementById('manAddress').value.trim();
+        const amount = parseFloat(document.getElementById('manAmount').value.replace(/,/g,'')) || 0;
+        const tax = parseFloat(document.getElementById('manTax').value.replace(/,/g,'')) || 0;
+        const dateObj = parseDMonY(document.getElementById('manDate').value.trim());
+        const cprNo = document.getElementById('manCpr').value.trim();
+        const statusEl = document.getElementById('manualStatus');
+
+        if (!name || !cnic || !tax){
+            statusEl.innerHTML = `<div class="status err">Name, NTN/CNIC and Tax Withheld are required.</div>`;
+            return;
+        }
+
+        mergeCPRRecords([{ name, cnic, address, amount, tax, cprNo, dateObj, bank: '', branch: '' }]);
+        showLoadedEmployees(`<div class="status ok">Added ${esc(name)}.</div>`);
+        statusEl.innerHTML = `<div class="status ok">Added &mdash; now ${employees.length} entr${employees.length>1?'ies':'y'} in the list.</div>`;
+
+        ['manName','manCnic','manAddress','manAmount','manTax','manDate','manCpr'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+    });
+
+    /* ---------------- Logo upload ---------------- */
+    const logoDropzone = document.getElementById('logoDropzone');
+    const logoInput = document.getElementById('logoInput');
+    logoDropzone.addEventListener('click', ()=>logoInput.click());
+    logoDropzone.addEventListener('dragover', e=>{e.preventDefault(); logoDropzone.classList.add('drag');});
+    logoDropzone.addEventListener('dragleave', ()=>logoDropzone.classList.remove('drag'));
+    logoDropzone.addEventListener('drop', e=>{
+        e.preventDefault(); logoDropzone.classList.remove('drag');
+        if (e.dataTransfer.files.length) handleLogoFile(e.dataTransfer.files[0]);
+    });
+    logoInput.addEventListener('change', e=>{
+        if (e.target.files.length) handleLogoFile(e.target.files[0]);
+    });
+
+    function handleLogoFile(file){
+        if (!/^image\/(png|jpeg|jpg|svg\+xml)$/.test(file.type)){
+            document.getElementById('logoPillHolder').innerHTML = `<div class="status err">Please choose a PNG, JPG, or SVG image.</div>`;
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(ev){
+            companyLogoDataUrl = ev.target.result;
+            document.getElementById('logoEmptyState').style.display='none';
+            document.getElementById('logoPreviewWrap').style.display='flex';
+            document.getElementById('logoPreviewImg').src = companyLogoDataUrl;
+            document.getElementById('logoPillHolder').innerHTML = `<div class="filepill"><span>&#128247; ${esc(file.name)}</span><button id="clearLogo">&times;</button></div>`;
+            document.getElementById('clearLogo').addEventListener('click', (ev2)=>{
+                ev2.stopPropagation();
+                removeLogo();
+            });
+            refreshPreviewIfAny();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function removeLogo(){
+        companyLogoDataUrl = null;
+        document.getElementById('logoEmptyState').style.display='';
+        document.getElementById('logoPreviewWrap').style.display='none';
+        document.getElementById('logoPreviewImg').src='';
+        document.getElementById('logoPillHolder').innerHTML='';
+        logoInput.value='';
+        refreshPreviewIfAny();
+    }
+
+    function refreshPreviewIfAny(){
+        if (selectedCert) selectEmployee(selectedCert);
+    }
+
+    document.getElementById('selectAll').addEventListener('change', function(){
+        if (this.checked) selectedSet = new Set(employees.map(e=>e.cnic));
+        else selectedSet = new Set();
+        renderEmpTable();
+    });
+
+    /* ---------------- Printing & Downloading ---------------- */
+
+    // Download Individual PDFs sequentially
+    document.getElementById('downloadAllBtn').addEventListener('click', async () => {
+        const chosen = employees.filter(e => selectedSet.has(e.cnic));
+        if (chosen.length === 0) { alert('Check at least one employee in the table to download.'); return; }
+
+        const btn        = document.getElementById('downloadAllBtn');
+        const overlay    = document.getElementById('downloadOverlay');
+        const dlSubText  = document.getElementById('dlSubText');
+        const dlBar      = document.getElementById('dlBar');
+        const dlCount    = document.getElementById('dlCount');
+
+        // Disable all toolbar buttons and show the overlay
+        document.querySelectorAll('#toolbarActions .btn').forEach(b => b.disabled = true);
+        dlSubText.textContent = 'Preparing certificates\u2026';
+        dlBar.style.width = '0%';
+        dlCount.textContent = `0 of ${chosen.length} done`;
+        overlay.classList.add('active');
+
+        // Grab all certificate-related CSS so we can embed it into a
+        // self-contained HTML string for each PDF.  This avoids reusing the same
+        // live DOM node across iterations (which caused html2canvas to mis-capture
+        // / skip tax rows on the 2nd+ certificate).
+        const certCSS = `
+            *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+            body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#111827;}
+            .cert-shell{
+                --certA:#1e3a8a; --certA-bg:#eff6ff; --certA-border:#bfdbfe;
+                --certHighlight:#fef08a; --certFont:Arial,Helvetica,sans-serif;
+                --certBoxBorder:1px solid #d1d5db; --certBoxBg:#f3f4f6;
+                --certOuterBorder:none; --certTitleColor:#111827;
+                background:#fff;width:210mm;max-width:100%;
+            }
+            .cert-shell.style-formal{
+                --certA:#111827; --certA-bg:#f3f4f6; --certA-border:#9ca3af;
+                --certHighlight:#e5e7eb; --certFont:'Times New Roman',Times,serif;
+                --certBoxBorder:1px solid #111827; --certBoxBg:#fff;
+                --certOuterBorder:2px solid #111827; --certTitleColor:#111827;
+            }
+            .cert-shell.style-minimal{
+                --certA:#334155; --certA-bg:#f8fafc; --certA-border:#e2e8f0;
+                --certHighlight:#f1f5f9; --certFont:'Segoe UI',Arial,sans-serif;
+                --certBoxBorder:none; --certBoxBg:transparent;
+                --certOuterBorder:none; --certTitleColor:#0f172a;
+            }
+            .cert-shell.style-emerald{
+                --certA:#065f46; --certA-bg:#ecfdf5; --certA-border:#a7f3d0;
+                --certHighlight:#fef9c3; --certFont:Arial,Helvetica,sans-serif;
+                --certBoxBorder:1px solid #a7f3d0; --certBoxBg:#f0fdf4;
+                --certOuterBorder:none; --certTitleColor:#064e3b;
+            }
+            .cert-shell.style-premium{
+                --certA:#1e3a8a; --certA-bg:#eef2ff; --certA-border:#c7d2fe;
+                --certHighlight:#fde68a; --certFont:Arial,Helvetica,sans-serif;
+                --certOuterBorder:none;
+            }
+            .cert-shell.style-modern{
+                --certA:#0f766e; --certA-bg:#f0fdfa; --certA-border:#99f6e4;
+                --certHighlight:#fef08a; --certFont:'Segoe UI',Arial,sans-serif;
+                --certOuterBorder:none;
+            }
+            .cert-shell.style-maroon{
+                --certA:#7f1d1d; --certA-bg:#fef2f2; --certA-border:#fecaca;
+                --certHighlight:#fde68a; --certFont:Arial,Helvetica,sans-serif;
+                --certBoxBorder:1px solid #fecaca; --certBoxBg:#fef2f2;
+                --certOuterBorder:none; --certTitleColor:#7f1d1d;
+            }
+            .cert-shell.style-slate{
+                --certA:#1e293b; --certA-bg:#f1f5f9; --certA-border:#cbd5e1;
+                --certHighlight:#e2e8f0; --certFont:Arial,Helvetica,sans-serif;
+                --certBoxBorder:1px solid #cbd5e1; --certBoxBg:#f8fafc;
+                --certOuterBorder:none; --certTitleColor:#0f172a;
+            }
+            .cert-shell.style-gold{
+                --certA:#92400e; --certA-bg:#fffbeb; --certA-border:#fde68a;
+                --certHighlight:#fef3c7; --certFont:Georgia,'Times New Roman',serif;
+                --certBoxBorder:1px solid #fde68a; --certBoxBg:#fffbeb;
+                --certOuterBorder:1px double #92400e; --certTitleColor:#78350f;
+            }
+            .border-wrapper{min-height:277mm;padding:0.55in;position:relative;background:#fff;font-family:var(--certFont);font-size:9.5pt;color:#111827;line-height:1.5;border:var(--certOuterBorder);}
+            .highlight{background:var(--certHighlight);text-decoration:underline;font-weight:bold;color:#000;white-space:nowrap;}
+            .header-table{width:100%;table-layout:fixed;border-bottom:2px solid var(--certA);border-collapse:collapse;margin-bottom:12px;}
+            .header-left{width:60%;vertical-align:top;text-align:left;}
+            .header-left-inner{display:flex;align-items:center;gap:12px;}
+            .header-logo-solo{max-height:58px;max-width:240px;object-fit:contain;display:block;}
+            .header-left h1{font-size:15pt;font-weight:bold;color:var(--certA);line-height:1.2;}
+            .header-left p{font-size:9pt;font-weight:bold;color:var(--certA);margin-top:2px;line-height:1.2;}
+            .header-right{width:40%;text-align:right;vertical-align:top;font-size:8.5pt;color:#374151;line-height:1.5;}
+            .badge{display:inline-block;background:var(--certA-bg);border:1px solid var(--certA-border);color:var(--certA);padding:2px 8px;font-weight:bold;font-size:8pt;margin-top:6px;}
+            .title-box{background:var(--certBoxBg);border:var(--certBoxBorder);padding:6px;text-align:center;margin-bottom:12px;}
+            .title-box h2{font-size:12pt;font-weight:bold;text-transform:uppercase;color:var(--certTitleColor);line-height:1.3;}
+            .title-box p{font-size:9pt;font-style:italic;margin-top:2px;color:#4b5563;line-height:1.3;}
+            .cert-body{text-align:left;word-wrap:break-word;line-height:1.6;margin-bottom:10px;font-size:9.5pt;}
+            .data-table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:12px;}
+            .data-table th{background:var(--certA);color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #cbd5e0;font-size:8.5pt;text-transform:uppercase;}
+            .data-table td{padding:4px 6px;border:1px solid #cbd5e0;font-size:8.5pt;vertical-align:middle;}
+            .data-table tbody tr:nth-child(even) td{background:#f9fafb;}
+            .col-center{text-align:center;}
+            .col-right{text-align:right;}
+            .col-mono{text-align:center;font-family:'Courier New',Courier,monospace;}
+            .footer-box{border:1px solid var(--certA-border);background:var(--certA-bg);padding:8px 12px;margin-bottom:8px;font-size:9pt;}
+            .footer-box .footer-label{font-weight:bold;color:var(--certA);margin-bottom:4px;font-size:9pt;}
+            .footer-info-table{width:100%;border-collapse:collapse;}
+            .footer-info-table td{border:none;padding:2px 0;font-size:9pt;vertical-align:top;color:#111827;}
+            .system-note{text-align:center;font-size:8pt;font-style:italic;color:#6b7280;margin-top:14px;padding-top:4px;}
+            .tpl-premium .prem-header{text-align:center;border-bottom:2px solid var(--certA);padding-bottom:10px;margin-bottom:10px;}
+            .tpl-premium .prem-header h1{font-size:15pt;font-weight:bold;color:var(--certA);}
+            .tpl-premium .prem-header p{font-size:8.5pt;color:#4b5563;margin-top:3px;}
+            .tpl-premium .prem-title{text-align:center;margin-bottom:14px;}
+            .tpl-premium .prem-title h2{font-size:13pt;font-weight:bold;color:var(--certTitleColor,#111827);text-transform:uppercase;letter-spacing:.02em;}
+            .tpl-premium .prem-title p{font-size:9pt;font-style:italic;color:#4b5563;margin-top:2px;}
+            .tpl-premium .prem-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:14px;padding:12px;background:var(--certA-bg);border:1px solid var(--certA-border);border-radius:4px;}
+            .tpl-premium .prem-field.wide{grid-column:1 / -1;}
+            .tpl-premium .prem-label{font-size:7.5pt;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;color:var(--certA);margin-bottom:2px;}
+            .tpl-premium .prem-value{font-size:9.5pt;color:#111827;font-weight:600;}
+            .tpl-premium .prem-body{font-size:9.5pt;line-height:1.6;margin-bottom:8px;text-align:left;}
+            .tpl-premium .prem-footer{text-align:center;font-size:8pt;font-style:italic;color:#6b7280;margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;}
+            .tpl-modern .mod-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--certA-border);padding-bottom:10px;margin-bottom:10px;}
+            .tpl-modern .mod-header h1{font-size:14pt;font-weight:bold;color:var(--certA);}
+            .tpl-modern .mod-header p{font-size:8.5pt;color:#4b5563;margin-top:3px;line-height:1.4;}
+            .tpl-modern .mod-meta{text-align:right;font-size:8.5pt;color:#374151;line-height:1.6;}
+            .tpl-modern .mod-title{font-size:13pt;font-weight:bold;color:var(--certTitleColor,#0f172a);letter-spacing:.05em;margin-bottom:12px;}
+            .tpl-modern .mod-section{background:var(--certA-bg);border-left:3px solid var(--certA);border-radius:3px;padding:8px 12px;margin-bottom:10px;font-size:9.5pt;line-height:1.6;}
+            .tpl-modern .mod-section-title{font-size:8pt;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;color:var(--certA);margin-bottom:4px;}
+            .tpl-modern .mod-body{font-size:9.5pt;line-height:1.6;margin-bottom:8px;text-align:left;}
+            .tpl-modern .mod-footer{text-align:center;font-size:8pt;font-style:italic;color:#6b7280;margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;}
+        `;
+
+        for (let i = 0; i < chosen.length; i++) {
+            const e = chosen[i];
+
+            // Update overlay progress
+            dlSubText.textContent = `Generating certificate ${i + 1} of ${chosen.length} \u2014 ${e.name}`;
+            dlBar.style.width = `${Math.round((i / chosen.length) * 100)}%`;
+            dlCount.textContent = `${i} of ${chosen.length} done`;
+
+            // Build a fully self-contained HTML document for each certificate.
+            // Using .from(htmlString, 'string') gives html2pdf a fresh rendering
+            // context every time, so no styles or layout bleed between iterations.
+            const selfContainedHTML = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>${certCSS}</style>
+</head><body>
+<div class="${certShellClass()}">${certificateHTML(e)}</div>
+</body></html>`;
+
+            const opt = {
+                margin:       0,
+                filename:     `${e.name} - Tax Certificate.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            await html2pdf().set(opt).from(selfContainedHTML, 'string').save();
+
+            // Small delay between files to let the browser breathe
+            await new Promise(r => setTimeout(r, 150));
+        }
+
+        // Fill bar to 100% briefly before closing
+        dlBar.style.width = '100%';
+        dlSubText.textContent = `All ${chosen.length} certificate${chosen.length > 1 ? 's' : ''} downloaded!`;
+        dlCount.textContent = `${chosen.length} of ${chosen.length} done`;
+        await new Promise(r => setTimeout(r, 800));
+
+        // Hide overlay and re-enable buttons
+        overlay.classList.remove('active');
+        document.querySelectorAll('#toolbarActions .btn').forEach(b => b.disabled = false);
+    });
+
+    // Existing: Print/Save as 1 single PDF file containing all certs
+    document.getElementById('printAllBtn').addEventListener('click', ()=>{
+        const chosen = employees.filter(e=>selectedSet.has(e.cnic));
+        if (chosen.length===0){ alert('Check at least one employee in the table to include in the batch.'); return; }
+        const root = document.getElementById('batchPrintRoot');
+        
+        // Reset styles modified by download feature
+        root.style.position = '';
+        root.style.left = '';
+        root.style.width = '';
+        root.style.zIndex = '';
+        
+        root.innerHTML = chosen.map(e=>`<div class="${certShellClass()}">${certificateHTML(e)}</div>`).join('');
+        document.querySelectorAll('.print-target').forEach(n=>n.classList.remove('print-target'));
+        root.classList.add('print-target');
+        root.style.display = 'block';
+        window.print();
+        setTimeout(()=>{ root.style.display='none'; root.classList.remove('print-target'); root.innerHTML=''; }, 300);
+    });
+
+    // Existing: Print single currently previewed cert
+    document.getElementById('printOneBtn').addEventListener('click', ()=>{
+        if (!selectedCert){ alert('Select an employee to preview first.'); return; }
+        document.body.classList.remove('printing-batch');
+        document.querySelectorAll('.print-target').forEach(n=>n.classList.remove('print-target'));
+        const holder = document.getElementById('previewHolder').querySelector('.cert-shell');
+        if (holder){ holder.classList.add('print-target'); }
+        window.print();
+    });
+
+    // Default issue date = today
+    (function setDefaultDate(){
+        const d = new Date();
+        document.getElementById('issueDate').value = fmtLong(d);
+    })();
+
+})();
+</script>
+</body>
+</html>
